@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LawGeeks App - Analyze Document</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js`;</script>
+  <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <style>
+    body {
+      background: linear-gradient(160deg, #111827 0%, #00090a 100%);
+      font-family: 'Poppins', sans-serif;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .risk-bar-wrapper {
+      position: relative;
+      width: 100%;
+      height: 20px;
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+    }
+    .risk-bar-gradient {
+      position: absolute;
+      height: 100%;
+      border-radius: 10px;
+      background: linear-gradient(to right, #10b981, #f59e0b, #ef4444);
+    }
+    .risk-indicator {
+      position: absolute;
+      top: -35px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-weight: bold;
+      font-size: 1rem;
+      color: white;
+      transform: translateX(-50%);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .risk-indicator::after {
+      content: '';
+      position: absolute;
+      bottom: -15px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 8px solid white;
+    }
+    #risk-meter-container {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 1rem 1.5rem 1.5rem 1.5rem;
+      border-radius: 1rem;
+      text-align: center;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    .risk-bar-background {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: #374151;
+      border-radius: 10px;
+    }
+    .font-logo { font-family: 'Playfair Display', serif; }
+    .font-body { font-family: 'Poppins', sans-serif; }
+
+    .text-bright-pink {
+      color: yellow;
+      text-shadow: 0 0 15px rgba(18, 130, 174, 0.575), 0 0 5px rgba(18, 130, 174, 0.575);
+    }
+    .btn-blue {
+      background-color: #3b82f6;
+      color: white;
+      padding: 0.6rem 1.25rem;
+      border-radius: 0.5rem;
+      font-weight: bold;
+      transition: all 0.2s ease-in-out;
+    }
+    .btn-blue:hover:not(:disabled) {
+      background-color: #2563eb;
+    }
+    .crystal-glass-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .loader {
+      border: 4px solid rgba(255,255,255,0.2);
+      border-top: 4px solid #3b82f6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.3);
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(244, 114, 182, 0.5);
+    }
+    .tab-button {
+      background-color: transparent;
+      color: #9ca3af;
+      border: 1px solid transparent;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      transition: all 0.2s ease-in-out;
+    }
+    .tab-button:hover {
+      background-color: rgba(59, 130, 246, 0.2);
+      color: white;
+    }
+    .tab-button-active {
+      background-color: #3b82f6;
+      color: white;
+      font-weight: 600;
+    }
+    .chat-message {
+      padding: 8px 12px;
+      border-radius: 0.75rem;
+      margin-bottom: 8px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+    .user-message {
+      background-color: #3b82f6;
+      color: white;
+      margin-left: auto;
+      border-bottom-right-radius: 0.25rem;
+    }
+    .bot-message {
+      background-color: #4b5563;
+      color: white;
+      margin-right: auto;
+      border-bottom-left-radius: 0.25rem;
+    }
+    @media (max-width: 640px) {
+      #chat-input {
+        padding: 0.5rem;
+        font-size: 0.9rem;
+      }
+      #chat-send {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body class="font-body text-white">
+  
+  <div class="flex flex-col h-screen">
+    <header class="bg-black/20 backdrop-blur-lg shadow-sm border-b border-white/10 relative z-10">
+      <div class="container mx-auto px-6 py-3 flex justify-between items-center">
+        <a href="/landing" class="font-logo text-3xl font-black text-bright-pink">LawGeeks</a>
+      </div>
+    </header>
+
+    <main class="flex-grow flex flex-col md:flex-row overflow-hidden p-4 gap-4">
+      <div class="w-full md:w-1/3 lg:w-1/4 crystal-glass-card p-6 flex flex-col rounded-xl overflow-y-auto custom-scrollbar">
+        <h2 class="font-logo text-3xl text-bright-pink mb-4">Analyze Document</h2>
+        <label for="text-input" class="text-lg font-semibold mb-2">Write or Paste Text</label>
+        <textarea id="text-input" class="w-full h-40 bg-black/20 border border-white/20 rounded-lg p-3" placeholder="Paste document text here..."></textarea>
+        <div class="relative flex py-5 items-center">
+          <div class="flex-grow border-t border-white/20"></div>
+          <span class="flex-shrink mx-4 text-sm">OR</span>
+          <div class="flex-grow border-t border-white/20"></div>
+        </div>
+        <label class="text-lg font-semibold mb-2">Upload a File</label>
+        <div class="space-y-3">
+          <button id="upload-pdf-btn" class="w-full text-left p-3 bg-black/20 border border-white/20 rounded-lg hover:bg-white/10 transition">Upload PDF (.pdf)</button>
+          <button id="upload-docx-btn" class="w-full text-left p-3 bg-black/20 border border-white/20 rounded-lg hover:bg-white/10 transition">Upload Word Doc (.docx)</button>
+          <button id="upload-image-btn" class="w-full text-left p-3 bg-black/20 border border-white/20 rounded-lg hover:bg-white/10 transition">Upload Image (.png, .jpg)</button>
+        </div>
+        <input type="file" id="file-input" class="hidden">
+        <p id="file-name" class="text-sm text-gray-400 mt-2 truncate"></p>
+        <div class="mt-auto pt-4">
+          <button id="analyze-button" class="w-full btn-blue mt-4">Analyze Document</button>
+        </div>
+      </div>
+
+      <div class="w-full md:w-2/3 lg:w-3/4 flex flex-col">
+        <div class="flex justify-between items-center border-b border-white/10 px-4">
+          <nav id="analysis-nav" class="flex space-x-1 py-2">
+            <button id="tab-dashboard" class="tab-button tab-button-active">Dashboard</button>
+            <button id="tab-chat" class="tab-button">Chat</button>
+          </nav>
+        </div>
+        <div id="results-container" class="crystal-glass-card rounded-xl flex-grow p-6 overflow-y-auto h-full custom-scrollbar">
+          <div id="analysis-placeholder" class="text-center text-gray-400">Your analysis will appear here.</div>
+          <div id="analysis-loading" class="hidden flex-col items-center justify-center">
+            <div class="loader"></div>
+            <p id="loading-status" class="mt-2">Analyzing...</p>
+          </div>
+          <div id="view-dashboard" class="hidden space-y-6"></div>
+          <div id="view-chat" class="hidden h-full flex flex-col">
+            <div id="chat-window" class="flex-grow overflow-y-auto mb-4 space-y-2 custom-scrollbar pr-2">
+              </div>
+            <div class="flex">
+              <input type="text" id="chat-input" placeholder="Ask a follow-up question..." class="flex-grow bg-black/20 border border-white/20 rounded-l-lg p-3 focus:outline-none focus:ring-2 focus:ring-pink-500 text-white">
+              <button id="chat-send" class="btn-blue font-bold p-3 rounded-r-lg">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <script>
+    // DELETED: The Gemini API Key is now stored securely on the backend.
+    
+    let currentAnalysisResult = '';
+    let documentContentForAnalysis = ''; // Store the full original document text here
+
+    const elements = {
+      analyzeButton: document.getElementById('analyze-button'),
+      textInput: document.getElementById('text-input'),
+      fileInput: document.getElementById('file-input'),
+      fileName: document.getElementById('file-name'),
+      uploadPdfBtn: document.getElementById('upload-pdf-btn'),
+      uploadDocxBtn: document.getElementById('upload-docx-btn'),
+      uploadImageBtn: document.getElementById('upload-image-btn'),
+      analysisNav: document.getElementById('analysis-nav'),
+      analysisPlaceholder: document.getElementById('analysis-placeholder'),
+      analysisLoading: document.getElementById('analysis-loading'),
+      loadingStatus: document.getElementById('loading-status'),
+      views: {
+        dashboard: document.getElementById('view-dashboard'),
+        chat: document.getElementById('view-chat'),
+      },
+      chatWindow: document.getElementById('chat-window'),
+      chatInput: document.getElementById('chat-input'),
+      chatSend: document.getElementById('chat-send'),
+    };
+
+    elements.uploadPdfBtn.addEventListener('click', () => triggerFileInput('.pdf'));
+    elements.uploadDocxBtn.addEventListener('click', () => triggerFileInput('.docx'));
+    elements.uploadImageBtn.addEventListener('click', () => triggerFileInput('image/*'));
+
+    elements.fileInput.addEventListener('change', handleFileUpload);
+    elements.analyzeButton.addEventListener('click', analyzeDocument);
+    elements.chatSend.addEventListener('click', handleSendMessage);
+    elements.chatInput.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') handleSendMessage();
+    });
+
+    elements.textInput.addEventListener('input', () => {
+      if (elements.textInput.value) {
+        documentContentForAnalysis = '';
+        elements.fileName.textContent = '';
+        elements.fileInput.value = '';
+      }
+    });
+
+    function triggerFileInput(acceptType) {
+      elements.fileInput.accept = acceptType;
+      elements.fileInput.click();
+    }
+
+    async function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      elements.textInput.value = '';
+      elements.fileName.textContent = file.name;
+      setLoading(true, 'Processing file...');
+      try {
+        if (file.type === 'application/pdf') {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+          let text = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            setLoading(true, `Reading PDF page ${i} of ${pdf.numPages}`);
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(' ');
+          }
+          documentContentForAnalysis = text;
+        } else if (file.name.endsWith('.docx')) {
+          setLoading(true, 'Reading Word document...');
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+          documentContentForAnalysis = result.value;
+        } else if (file.type.startsWith('image/')) {
+          setLoading(true, 'Recognizing text in image (OCR)...');
+          const worker = await Tesseract.createWorker('eng');
+          const { data: { text } } = await worker.recognize(file);
+          documentContentForAnalysis = text;
+          await worker.terminate();
+        } else {
+          documentContentForAnalysis = await file.text();
+        }
+      } catch (error) {
+        alert(`Error processing file: ${error.message}`);
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // --- MODIFIED: This function now calls our Flask backend ---
+    async function analyzeDocument() {
+      const content = elements.textInput.value.trim() || documentContentForAnalysis;
+      if (!content) {
+        alert("Please paste text or upload a file to analyze.");
+        return;
+      }
+
+      documentContentForAnalysis = content;
+      elements.chatWindow.innerHTML = '';
+      setLoading(true, 'Contacting server...');
+
+      try {
+        const response = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        currentAnalysisResult = result.analysis;
+        displayAnalysisResults(result.analysis);
+
+      } catch (error) {
+        alert(`Analysis Error: ${error.message}`);
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // DELETED: The `callGeminiAPI` function is no longer needed on the client-side.
+
+    function formatContentWithDesignedLists(text) {
+      const lines = text.split('\n').filter(line => line.trim() !== '');
+      return lines.map(line => {
+        if (line.trim().startsWith('*')) {
+          return `
+            <div class="flex items-start my-3">
+              <svg class="w-5 h-5 mr-3 text-pink-400 flex-shrink-0 mt-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+              <span>${line.trim().substring(1).trim()}</span>
+            </div>`;
+        }
+        return `<p class="my-2">${line}</p>`;
+      }).join('');
+    }
+
+    function displayAnalysisResults(text) {
+      const sections = {};
+      const parts = text.split('### ').slice(1);
+      parts.forEach(part => {
+        const [title, ...content] = part.split('\n');
+        sections[title.trim().replace(/:/g, '')] = content.join('\n').trim();
+      });
+
+      let riskScore = 50;
+      let riskJustification = "Could not be determined from the analysis.";
+      const scoreSectionText = sections['Vigilance Score (1-100) and Justification'];
+
+      if (scoreSectionText) {
+        const scoreMatch = scoreSectionText.match(/(\d+)/);
+        if (scoreMatch) {
+          riskScore = parseInt(scoreMatch[0], 10);
+        }
+        riskJustification = scoreSectionText.replace(/(\d+)/, '').replace(/[*.]/g, '').trim();
+      }
+
+      const clampedRiskScore = Math.max(5, Math.min(95, riskScore));
+
+      const createSectionHTML = (title, content) =>
+        content ? `<div class="mb-6">
+          <h3 class="text-2xl font-bold text-bright-pink mb-3 border-b border-pink-500/20 pb-2">${title}</h3>
+          <div class="text-gray-300">${formatContentWithDesignedLists(content)}</div>
+        </div>` : '';
+
+      const riskMeterHTML = `
+        <div id="risk-meter-container" class="mb-6">
+          <h3 class="text-2xl font-bold text-bright-pink mb-3">Vigilance Score</h3>
+          <div class="risk-bar-wrapper">
+            <div class="risk-bar-background"></div>
+            <div class="risk-bar-gradient" style="width: ${riskScore}%;"></div>
+            <div class="risk-indicator" style="left: ${clampedRiskScore}%;">${riskScore}%</div>
+          </div>
+          <p class="text-sm text-gray-400 mt-4 italic">Justification: ${riskJustification}</p>
+        </div>`;
+
+      elements.views.dashboard.innerHTML = riskMeterHTML +
+        createSectionHTML('Summary', sections['Summary']) +
+        createSectionHTML('Key Insights', sections['Key Insights']) +
+        createSectionHTML('Important Mentions', sections['Important Mentions']);
+
+      switchTab('dashboard');
+    }
+
+    function switchTab(tab) {
+      elements.analysisPlaceholder.classList.add('hidden');
+      Object.values(elements.views).forEach(v => v.classList.add('hidden'));
+      elements.views[tab].classList.remove('hidden');
+
+      document.querySelectorAll('#analysis-nav button').forEach(btn => {
+        btn.classList.remove('tab-button-active');
+      });
+      const activeBtn = document.getElementById(`tab-${tab}`);
+      if (activeBtn) activeBtn.classList.add('tab-button-active');
+
+      if (tab === 'chat' && documentContentForAnalysis && elements.chatWindow.children.length === 0) {
+        appendMessageToChat("I have read the document. Ask me anything about it!", 'bot');
+      }
+    }
+
+    function setLoading(isLoading, message = 'Analyzing...') {
+      elements.analysisLoading.classList.toggle('hidden', !isLoading);
+      elements.loadingStatus.textContent = message;
+      elements.analysisPlaceholder.classList.toggle('hidden', isLoading);
+
+      if (isLoading) {
+        elements.analysisNav.classList.add('hidden');
+        Object.values(elements.views).forEach(v => v.classList.add('hidden'));
+      } else {
+        elements.analysisNav.classList.remove('hidden');
+      }
+    }
+
+    function appendMessageToChat(text, type) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `chat-message ${type}-message`;
+      messageDiv.textContent = text;
+      elements.chatWindow.appendChild(messageDiv);
+      elements.chatWindow.scrollTop = elements.chatWindow.scrollHeight;
+    }
+    
+    // --- MODIFIED: This function now calls our Flask backend ---
+    async function handleSendMessage() {
+        const userMessage = elements.chatInput.value.trim();
+        if (!userMessage) return;
+        if (!documentContentForAnalysis) {
+            alert("Please analyze a document before using the chat.");
+            return;
+        }
+
+        appendMessageToChat(userMessage, 'user');
+        elements.chatInput.value = '';
+        appendMessageToChat("Thinking...", 'bot');
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    document: documentContentForAnalysis,
+                    question: userMessage,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            const result = await response.json();
+            elements.chatWindow.removeChild(elements.chatWindow.lastChild);
+            appendMessageToChat(result.answer, 'bot');
+
+        } catch (error) {
+            elements.chatWindow.removeChild(elements.chatWindow.lastChild);
+            appendMessageToChat(`Sorry, I encountered an error: ${error.message}`, 'bot');
+        }
+    }
+
+    document.querySelectorAll('#analysis-nav button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tabId = e.target.id.replace('tab-', '');
+        switchTab(tabId);
+      });
+    });
+  </script>
+</body>
+</html>
