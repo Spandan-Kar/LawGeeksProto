@@ -33,7 +33,7 @@ A live version of our application is deployed on **Google Cloud Run**:
 
 ---
 
-##📌 Usage
+## 📌 Usage
 
 Start the application.
 
