@@ -51,7 +51,7 @@ View:
 
    3.Translation options
 
-##🙌 Acknowledgments
+## 🙌 Acknowledgments
 
 This project was developed by Team Avalanchitects for the Google Cloud Gen AI Exchange Hackathon.
 
