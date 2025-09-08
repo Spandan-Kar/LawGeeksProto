@@ -185,15 +185,13 @@
           <span class="flex-shrink mx-4 text-sm">OR</span>
           <div class="flex-grow border-t border-white/20"></div>
         </div>
-
         <label class="text-lg font-semibold mb-2">Upload a File</label>
-        <label for="file-input" class="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-white/20 rounded-lg cursor-pointer hover:bg-white/5 transition">
-          <div class="flex flex-col items-center justify-center pt-5 pb-6">
-            <p class="mb-2 text-sm text-gray-400"><span class="font-semibold">Click to upload</span> or drag and drop</p>
-            <p class="text-xs text-gray-500">PDF, DOCX, PNG, or JPG</p>
-          </div>
-        </label>
-        <input type="file" id="file-input" class="hidden" accept=".pdf,.docx,.png,.jpg">
+        <div class="space-y-3">
+          <button id="upload-pdf-btn" class="w-full text-left p-3 bg-black/20 border border-white/20 rounded-lg hover:bg-white/10 transition">Upload PDF (.pdf)</button>
+          <button id="upload-docx-btn" class="w-full text-left p-3 bg-black/20 border border-white/20 rounded-lg hover:bg-white/10 transition">Upload Word Doc (.docx)</button>
+          <button id="upload-image-btn" class="w-full text-left p-3 bg-black/20 border border-white/20 rounded-lg hover:bg-white/10 transition">Upload Image (.png, .jpg)</button>
+        </div>
+        <input type="file" id="file-input" class="hidden">
         <p id="file-name" class="text-sm text-gray-400 mt-2 truncate"></p>
         <div class="mt-auto pt-4">
           <button id="analyze-button" class="w-full btn-blue mt-4">Analyze Document</button>
@@ -238,7 +236,9 @@
       textInput: document.getElementById('text-input'),
       fileInput: document.getElementById('file-input'),
       fileName: document.getElementById('file-name'),
-      // DELETED: Old button elements are no longer needed
+      uploadPdfBtn: document.getElementById('upload-pdf-btn'),
+      uploadDocxBtn: document.getElementById('upload-docx-btn'),
+      uploadImageBtn: document.getElementById('upload-image-btn'),
       analysisNav: document.getElementById('analysis-nav'),
       analysisPlaceholder: document.getElementById('analysis-placeholder'),
       analysisLoading: document.getElementById('analysis-loading'),
@@ -252,8 +252,10 @@
       chatSend: document.getElementById('chat-send'),
     };
 
-    // DELETED: Event listeners for old buttons are removed.
-    
+    elements.uploadPdfBtn.addEventListener('click', () => triggerFileInput('.pdf'));
+    elements.uploadDocxBtn.addEventListener('click', () => triggerFileInput('.docx'));
+    elements.uploadImageBtn.addEventListener('click', () => triggerFileInput('image/*'));
+
     elements.fileInput.addEventListener('change', handleFileUpload);
     elements.analyzeButton.addEventListener('click', analyzeDocument);
     elements.chatSend.addEventListener('click', handleSendMessage);
@@ -269,7 +271,10 @@
       }
     });
 
-    // DELETED: The triggerFileInput function is no longer needed.
+    function triggerFileInput(acceptType) {
+      elements.fileInput.accept = acceptType;
+      elements.fileInput.click();
+    }
 
     async function handleFileUpload(event) {
       const file = event.target.files[0];
@@ -301,9 +306,7 @@
           documentContentForAnalysis = text;
           await worker.terminate();
         } else {
-            alert('Unsupported file type. Please upload a PDF, DOCX, PNG, or JPG file.');
-            documentContentForAnalysis = '';
-            elements.fileName.textContent = '';
+          documentContentForAnalysis = await file.text();
         }
       } catch (error) {
         alert(`Error processing file: ${error.message}`);
